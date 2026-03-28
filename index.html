@@ -3,7 +3,6 @@
 <head>
   <meta charset="UTF-8">
   <title>NexaTasks</title>
-
   <script src="https://sdk.minepi.com/pi-sdk.js"></script>
 </head>
 <body>
@@ -13,28 +12,82 @@
 <h3 id="user">Not logged in</h3>
 <button onclick="loginWithPi()">Login with Pi</button>
 
-<p>Select your role:</p>
-
-<button onclick="selectRole('freelancer')">👨 Freelancer</button>
-<button onclick="selectRole('client')">💼 Client</button>
-<button onclick="selectRole('women')">👩 Women Zone</button>
-
 <hr>
-
 <div id="app"></div>
+
+<button onclick="payWithPi(1)">💰 Pay 1 Pi</button>
 
 <script>
 
-// تشغيل Pi
 if (window.Pi) {
   Pi.init({ version: "2.0", sandbox: true });
 }
 
-// بيانات
 let currentUser = null;
-let tasks = JSON.parse(localStorage.getItem("tasks")) || [];
 
-// تسجيل الدخول
+async function loginWithPi() {
+  try {
+    const scopes = ['username'];
+    currentUser = await Pi.authenticate(scopes);
+    document.getElementById("user").innerText =
+      "Logged in as: " + currentUser.user.username;
+  } catch (err) {
+    document.getElementById("user").innerText = "Login failed ❌";
+  }
+}
+
+function payWithPi(amount) {
+
+  if (!window.Pi) {
+    alert("Open in Pi Browser!");
+    return;
+  }
+
+  const paymentData = {
+    amount: parseFloat(amount),
+    memo: "Test Payment",
+    metadata: { type: "test" }
+  };
+
+  Pi.createPayment(paymentData, {
+
+    onReadyForServerApproval: function(paymentId) {
+      fetch("/.netlify/functions/Pi-approve", {
+        method: "POST",
+        body: JSON.stringify({ paymentId })
+      });
+    },
+
+    onReadyForServerCompletion: function(paymentId, txid) {
+      fetch("/.netlify/functions/Pi-complete", {
+        method: "POST",
+        body: JSON.stringify({ paymentId, txid })
+      });
+
+      alert("Payment Completed ✅");
+    },
+
+    onCancel: function(paymentId) {
+      fetch("/.netlify/functions/Pi-cancel", {
+        method: "POST",
+        body: JSON.stringify({ paymentId })
+      });
+
+      alert("Cancelled ❌");
+    },
+
+    onError: function(error) {
+      console.error(error);
+      alert("Error ⚠️");
+    }
+
+  });
+}
+
+</script>
+
+</body>
+</html>// تسجيل الدخول
 async function loginWithPi() {
   try {
     const scopes = ['username'];
