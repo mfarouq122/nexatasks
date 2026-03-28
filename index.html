@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>NexaTasks</title>
+
+  <script src="https://sdk.minepi.com/pi-sdk.js"></script>
+</head>
+<body>
+
+<h1>Welcome to NexaTasks 🚀</h1>
+
+<h3 id="user">Not logged in</h3>
+<button onclick="loginWithPi()">Login with Pi</button>
+
+<p>Select your role:</p>
+
+<button onclick="selectRole('freelancer')">👨 Freelancer</button>
+<button onclick="selectRole('client')">💼 Client</button>
+<button onclick="selectRole('women')">👩 Women Zone</button>
+
+<hr>
+
+<div id="app"></div>
+
+<script>
+
+// تشغيل Pi
+if (window.Pi) {
+  Pi.init({ version: "2.0", sandbox: true });
+}
+
+// بيانات
+let currentUser = null;
+let tasks = JSON.parse(localStorage.getItem("tasks")) || [];
+
+// تسجيل الدخول
+async function loginWithPi() {
+  try {
+    const scopes = ['username'];
+    currentUser = await Pi.authenticate(scopes);
+
+    document.getElementById("user").innerText =
+      "Logged in as: " + currentUser.user.username;
+
+  } catch (err) {
+    document.getElementById("user").innerText = "Login failed ❌";
+  }
+}
+
+// حفظ
+function saveTasks() {
+  localStorage.setItem("tasks", JSON.stringify(tasks));
+}
+
+// اختيار الدور
+function selectRole(role) {
+
+  if (role === 'client') {
+    document.getElementById('app').innerHTML = `
+      <h2>Post a Task</h2>
+      <input id="taskTitle" placeholder="Task title"><br><br>
+      <input id="taskPrice" placeholder="Price in Pi"><br><br>
+      <button onclick="postTask()">Post Task</button>
+      <p id="msg"></p>
+    `;
+  }
+
+  else if (role === 'freelancer') {
+    showTasks();
+  }
+
+  else if (role === 'women') {
+    showWomenZone();
+  }
+}
+
+// نشر مهمة
+function postTask() {
+  let title = document.getElementById('taskTitle').value;
+  let price = document.getElementById('taskPrice').value;
+
+  if (!currentUser) {
+    document.getElementById('msg').innerText = "Login first!";
+    return;
+  }
+
+  if (title === "" || price === "") {
+    document.getElementById('msg').innerText = "Fill all fields!";
+    return;
+  }
+
+  tasks.push({
+    title,
+    price,
+    owner: currentUser.user.username
+  });
+
+  saveTasks();
+
+  document.getElementById('msg').innerText = "Task Posted ✅";
+}
+
+// عرض المهام
+function showTasks() {
+
+  if (tasks.length === 0) {
+    document.getElementById('app').innerHTML =
+      "<h2>Available Tasks</h2><p>No tasks yet</p>";
+    return;
+  }
+
+  let html = "<h2>Available Tasks</h2>";
+
+  tasks.forEach((task) => {
+    html += `
+      <div>
+        <p><b>${task.title}</b> - ${task.price} Pi</p>
+        <p>👤 ${task.owner}</p>
+        <button onclick="payWithPi(${task.price})">💰 Pay</button>
+      </div>
+      <hr>
+    `;
+  });
+
+  document.getElementById('app').innerHTML = html;
+}
+
+// Women Zone
+function showWomenZone() {
+  document.getElementById('app').innerHTML = `
+    <h2>👩 Women Safe Zone</h2>
+    <p>Special safe tasks for women 💖</p>
+    <p>(Feature will be expanded later)</p>
+  `;
+}
+
+// الدفع (مربوط بـ Netlify Backend)
+function payWithPi(amount) {
+
+  if (!window.Pi) {
+    alert("Open in Pi Browser!");
+    return;
+  }
+
+  const paymentData = {
+    amount: parseFloat(amount),
+    memo: "Test Payment",
+    metadata: { type: "test" }
+  };
+
+  Pi.createPayment(paymentData, {
+
+    onReadyForServerApproval: function(paymentId) {
+      fetch("/.netlify/functions/Pi-approve", {
+        method: "POST",
+        body: JSON.stringify({ paymentId })
+      });
+    },
+
+    onReadyForServerCompletion: function(paymentId, txid) {
+      fetch("/.netlify/functions/Pi-complete", {
+        method: "POST",
+        body: JSON.stringify({ paymentId, txid })
+      });
+
+      alert("Payment Completed ✅");
+    },
+
+    onCancel: function(paymentId) {
+      fetch("/.netlify/functions/Pi-cancel", {
+        method: "POST",
+        body: JSON.stringify({ paymentId })
+      });
+
+      alert("Cancelled ❌");
+    },
+
+    onError: function(error) {
+      console.error(error);
+      alert("Error ⚠️");
+    }
+  });
+}
+
+</script>
+
+</body>
+</html>
